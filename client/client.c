@@ -15,17 +15,28 @@
 * accordance with the terms of the license agreement you entered into
 * with ITS Partner.
 */
+#define _GNU_SOURCE
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "head_client.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#define PORT 13230
+#define BUFFER_SIZE 1024
 
-#define PORT 1321
-#define MESSAGE_SIZE 1024
+#define RECORD_SIZE 98
+
+#define CHAR_SIZE 8
+
+#define RECORD_FIELD_TO_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) buff[offset] = field[i];})
+
+void print_bits (int n, int size) {
+    char* bits = "";
+
+    for (int i = 0; i < size; i++) {
+        asprintf (&bits, "%d%s", (n & 1), bits);
+        n = n >> 1;
+    }
+    printf ("%s\n", bits);
+}
 
 int main () {
 	int sock;
@@ -43,20 +54,56 @@ int main () {
 		puts ("Failed connection to server");
 		exit (EXIT_FAILURE);
 	}
-	char message[MESSAGE_SIZE];
+	char buff[BUFFER_SIZE];
+	memset (buff, ' ', BUFFER_SIZE);
 
-	memset (message, ' ', MESSAGE_SIZE);
-	fflush (stdin);
-
-	while (fgets (message, MESSAGE_SIZE - 1, stdin)) {
-		if (strcmp (message, "stop\n") == 0) {
+	while (fgets (buff, BUFFER_SIZE - 1, stdin)) {
+		if (strcmp (buff, "stop\n") == 0) {
 			break;
 		}
-		if (send (sock, message, strlen (message), 0) < 0) {
-			puts ("Failed send message on server");
-			exit (EXIT_FAILURE);
+
+		if (strcmp (buff, "add\n") == 0) {
+			add_record (sock);
 		}
-		memset (message, '\0', MESSAGE_SIZE);
+		memset (buff, '\0', BUFFER_SIZE);
 	}
 	close (sock);
+}
+
+void add_record (int sock) {
+	char buff[BUFFER_SIZE] = "add";
+
+	if (send (sock, buff, strlen (buff), 0) < 0) {
+		puts ("Failed send add_record");
+		exit (EXIT_FAILURE);
+	}
+	struct record rec;
+
+	scanf ("%s%s%s%s%s%s%d%d", rec.second_name, rec.name, rec.patronymic, rec.country, rec.city, rec.street, &rec.house, &rec.flat);
+
+	send_record (sock, rec);
+}
+
+void send_record (int sock, struct record rec) {
+	char record_buff [RECORD_SIZE];
+	int offset = 0;
+
+	RECORD_FIELD_TO_BUFF(record_buff, rec.second_name, offset, FIELD_SIZE);
+	RECORD_FIELD_TO_BUFF(record_buff, rec.name, offset, FIELD_SIZE);
+	RECORD_FIELD_TO_BUFF(record_buff, rec.patronymic, offset, FIELD_SIZE);
+	RECORD_FIELD_TO_BUFF(record_buff, rec.country, offset, FIELD_SIZE);
+	RECORD_FIELD_TO_BUFF(record_buff, rec.city, offset, FIELD_SIZE);
+	RECORD_FIELD_TO_BUFF(record_buff, rec.street, offset, FIELD_SIZE);
+
+	for (int i = 0; i < sizeof (int); i++, offset++){
+		record_buff[offset] = (0xff & (rec.house >> (i * CHAR_SIZE)));
+	}
+	for (int i = 0; i < sizeof (int); i++, offset++){
+		record_buff[offset] = (0xff & (rec.flat >> (i * CHAR_SIZE)));
+	}
+
+	if (send (sock, record_buff, RECORD_SIZE, 0) < 0) {
+		puts ("Failed send buff");
+		exit (EXIT_FAILURE);
+	}
 }

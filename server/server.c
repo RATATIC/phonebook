@@ -16,14 +16,52 @@
 * with ITS Partner.
 */
 
+#define _GNU_SOURCE
+
 #include "head_server.h"
 
-#define PORT 1321
-#define READING_SIZE 1024
+#define PORT 13230
+#define BUFFER_SIZE 1024
+
+#define FIELD_SIZE 15
+#define RECORD_SIZE 98
+
+#define CHAR_SIZE 8
+
+#define RECORD_FIELD_FROM_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) field[i] = buff[offset];})
+
+#define INT_FROM_BUFFER(buff, offset) (((unsigned int)buff[(offset)] << 0) | ((unsigned int)buff[(offset) + 1] << 8) | ((unsigned int)buff[(offset) + 2] << 16) | ((unsigned int)buff[(offset) + 3] << 24))
+
+#define GET_INT16(buff, offset) ((uint16t)buff[(offset)] | ((uint16t)buff[(offset) + 1] << 8))
+
+
+struct record {
+    char second_name [FIELD_SIZE];
+    char name [FIELD_SIZE];
+    char patronymic [FIELD_SIZE];
+
+    char country [FIELD_SIZE];
+    char city [FIELD_SIZE];
+    char street [FIELD_SIZE];
+    int house;
+    int flat; 
+};
+
+void print_bits (int n, int size) {
+    char* bits = "";
+
+    for (int i = 0; i < size; i++) {
+        asprintf (&bits, "%d%s", (n & 1), bits);
+        n = n >> 1;
+    }
+    printf ("%s\n", bits);
+}
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int main () {
     FILE* fp;
-    if ((fp = fopen ("phonebook.txt", "r+")) == NULL) {
+    if ((fp = fopen ("phonebook.txt", "a")) == NULL) {
         puts ("Failed open file");
         exit (EXIT_FAILURE);
     }
@@ -72,17 +110,79 @@ int main () {
 }
 
 void client_accept (struct thr_data* data) {
-        char buff [READING_SIZE];
-
+        char buff [BUFFER_SIZE];
+       
         while (1) {
-            if (recv (data->sock, buff, READING_SIZE, 0) < 0) {
-                puts ("Failed recv message");
-                exit (EXIT_FAILURE);
-            }   
-            printf("%s\n", buff);
-            memset (buff, '\0', READING_SIZE);
+            if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
+                break;
+            }
+
+            if (strcmp (buff, "add") == 0) {
+                add_record (data);
+            }
+            if (strcmp (buff, "search") == 0) {
+                search_record (data);
+            }
+
+            memset (buff, '\0', BUFFER_SIZE);
         }
         close (data->sock);
+}
+
+void search_record (struct thr_data* data) {
+    char buff[BUFFER_SIZE];
+
+    if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
+        puts ("Failed recv");
+        exit (EXIT_FAILURE);
+    }
+}
+
+void add_record (struct thr_data* data) {
+    char buff [RECORD_SIZE];                                                                        ///////////////////////
+    int offset = 0;
+
+    if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
+        puts ("Failed recv add_record");
+        exit (EXIT_FAILURE);
+    }
+
+    struct record rec;
+    rec.house = 0;
+    rec.flat = 0;
+
+    RECORD_FIELD_FROM_BUFF(buff, rec.second_name, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF(buff, rec.name, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF(buff, rec.patronymic, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF(buff, rec.country, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF(buff, rec.city, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF(buff, rec.street, offset, FIELD_SIZE);
+
+    for (int i = 0; i < sizeof (int); i++, offset++) {
+        rec.house += (int)(buff[offset] << (i * CHAR_SIZE));
+        print_bits (rec.house, 32);
+        print_bits (buff[offset], 8);
+    }
+
+    for (int i = 0; i < sizeof (int); i++, offset++) {
+        rec.flat += (int)(buff[offset] << (i * CHAR_SIZE));
+    }
+
+    printf ("%s %s %s %s %s %s %d %d\n", rec.second_name, rec.name, rec.patronymic, rec.country, rec.city, rec.street, rec.house, rec.flat);
+    fflush (stdin);
+
+    if (pthread_mutex_lock (&mtx)) {
+        puts ("Failed lock mtx");
+        exit (EXIT_FAILURE);
+    }
+
+    fprintf (data->fp, "%s %s %s %s %s %s %d %d\n", rec.second_name, rec.name, rec.patronymic, rec.country, rec.city, rec.street, rec.house, rec.flat);
+    fflush (data->fp);
+
+    if (pthread_mutex_unlock (&mtx)) {
+        puts ("Failed unlock mtx");
+        exit (EXIT_FAILURE);
+    }
 }
 
 void create_thread(struct thr_node** thr_top, struct thr_data* data) {
