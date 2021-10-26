@@ -28,6 +28,8 @@
 
 #define RECORD_FIELD_TO_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) buff[offset] = field[i];})
 
+#define RECORD_FIELD_FROM_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) field[i] = buff[offset];})
+
 void print_bits (int n, int size) {
     char* bits = "";
 
@@ -65,13 +67,75 @@ int main () {
 		if (strcmp (buff, "add\n") == 0) {
 			add_record (sock);
 		}
+
+		if (strcmp (buff, "search\n") == 0) {
+			serch_record (sock);
+		}
 		memset (buff, '\0', BUFFER_SIZE);
 	}
 	close (sock);
 }
 
+void search_record (int sock) {
+	char buff[BUFFER_SIZE];
+
+	fgets (buff, BUFFER_SIZE - 1, stdin);
+
+	if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+		puts ("Failed send");
+		exit (EXIT_FAILURE);
+	}
+
+	int offset = 0;
+	char record_buff[RECORD_SIZE];
+
+	int size_found_record = 0;
+	struct record* found_records = (struct record*)malloc (sizeof (struct record));
+	if (found_records == NULL) {
+		puts ("Failed malloc");
+		exit (EXIT_FAILURE);
+	}
+
+	while (1) {
+		if (recv (sock, record_buff, RECORD_SIZE, 0) < 0) {
+			puts ("Failed recv");
+			exit (EXIT_FAILURE);
+		}
+
+		if (record_buff[0] == '0') {
+			break;
+		}
+
+		if (size_found_record > 0) {
+			found_records = realloc (found_records, sizeof (struct record) * (size_found_record + 1));
+			if (found_records == NULL) {
+				puts ("Failed realloc");
+				exit (EXIT_FAILURE);
+			}
+		}
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].second_name);
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].name);
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].patronymic);
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].country);
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].city);
+		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].street);
+
+		 for (int i = 0; i < sizeof (int); i++, offset++) {
+        rec.house += (int)(buff[offset] << (i * CHAR_SIZE));
+   		}
+
+    	for (int i = 0; i < sizeof (int); i++, offset++) {
+        	rec.flat += (int)(buff[offset] << (i * CHAR_SIZE));
+    	}
+    }
+
+    for (int i = 0; i < size_found_record; i++) {
+    	printf ("%s %s %s %s %s %s %d %d\n", found_records[i].second_name, found_records[i].name, found_records[i].patronymic, found_records[i].country, found_records[i].city, found_records[i].street, found_records[i].house,found_records[i].flat);
+    }
+}
+
 void add_record (int sock) {
-	char buff[BUFFER_SIZE] = "add";
+	char buff[BUFFER_SIZE] = "add"; ////////////////// less memory
 
 	if (send (sock, buff, strlen (buff), 0) < 0) {
 		puts ("Failed send add_record");

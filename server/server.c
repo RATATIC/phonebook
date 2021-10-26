@@ -27,10 +27,13 @@
 #define RECORD_SIZE 98
 
 #define CHAR_SIZE 8
+#define SEARCH_RECORD_FIELD_SIZE 30
 
 #define RECORD_FIELD_FROM_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) field[i] = buff[offset];})
 
-#define INT_FROM_BUFFER(buff, offset) (((unsigned int)buff[(offset)] << 0) | ((unsigned int)buff[(offset) + 1] << 8) | ((unsigned int)buff[(offset) + 2] << 16) | ((unsigned int)buff[(offset) + 3] << 24))
+#define RECORD_FIELD_TO_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) buff[offset] = field[i];})
+
+#define INT_FROM_BUFFER(buff, offset) (((int)buff[(offset)] << 0) | ((int)buff[(offset) + 1] << 8) | ((int)buff[(offset) + 2] << 16) | ((int)buff[(offset) + 3] << 24))
 
 #define GET_INT16(buff, offset) ((uint16t)buff[(offset)] | ((uint16t)buff[(offset) + 1] << 8))
 
@@ -136,6 +139,169 @@ void search_record (struct thr_data* data) {
         puts ("Failed recv");
         exit (EXIT_FAILURE);
     }
+    char* ptr = strchr (buff, ' ');
+    int size_searching_fields = 0;
+
+    char** searching_records = (char**)malloc (sizeof (char*));
+    if (searching_records == NULL) {
+        puts ("Failed malloc");
+        exit (EXIT_FAILURE);
+    }
+
+    for (int i = 0;ptr != NULL; i++, size_searching_fields++) {
+        if (i > 0) {
+            searching_records = realloc (serching_fields, sizeof (char*) * (i + 1));
+            if (searching_records == NULL) {
+                puts ("Failed realloc");
+                exit (EXIT_FAILURE);
+            }
+        }
+        serching_fields[i] = (char*)malloc (sizeof (char) * SEARCH_RECORD_FIELD_SIZE);
+        strncat (searching_records[i], buff, ptr - buff + 1);
+
+        buff = ptr + 1;
+        ptr  = strchr(buff, ' ');
+    }
+
+    struct record tmp;
+    char field_name[FIELD_SIZE];
+    char number[CHAR_SIZE];
+
+    for (int i = 0; i < size_searching_fields; i++) {
+        ptr = strchr (serching_fields[i], '-');
+        strncat (field_name, serching_fields[i], ptr - serching_fields[i]);
+        
+        if (strcmp (field_name, "second_name") == 0) {
+            strcat (tmp.second_name, ptr + 1);
+        }
+        else if (strcmp (field_name, "name") == 0) {
+            strcat (tmp.name, ptr + 1);
+        }
+        else if (strcmp (field_name, "patronymic") == 0) {
+            strcat (tmp.patronymic, ptr + 1);
+        }
+        else if (strcmp (field_name, "country") == 0) {
+            strcat (tmp.country, ptr + 1);
+        }
+        else if (strcmp (field_name, "city") == 0) {
+            strcat (tmp.city, ptr + 1);
+        }
+        else if (strcmp (field_name, "street") == 0) {
+            strcat (tmp.street, ptr + 1);
+        } 
+        else if (strcmp (field_name, "house") == 0) {
+            strcat (nubmer, ptr + 1);
+            tmp.house = atoi (number);
+            memset (number, '\0', CHAR_SIZE);
+        }
+        else if (strcmp (field_name, "flat") == 0) {
+            strcat (nubmer, ptr + 1);
+            tmp.flat = atoi (number);
+            memset (number, '\0', CHAR_SIZE);
+        }
+        memset (field_name, '\0', FIELD_SIZE);
+    }
+    if (pthread_mutex_lock (&mtx)) {
+        puts ("Failed lock mutex");
+        exit (EXIT_FAILURE);
+    }
+    if (fseek (data->fp, 0, SEEK_SET)) {
+        puts ("Failed fseek");
+        exit (EXIT_FAILURE);
+    }
+    struct record tmp2;
+
+    int size_found_records = 0;
+
+    struct record* found_records = (struct record*)malloc  (sizeof (struct record));
+    if (found_records == NULL) {
+        puts ("Failed malloc");
+        exit (EXIT_FAILURE);
+    }
+
+    while (feof (data->fp) != 0) {
+        fscanf (fp, "%s%s%s%s%s%s%d%d", tmp2.second_name, tmp2.name, tmp2.patronymic, tmp2.country, tmp2.city, tmp2.street, tmp2.house, tmp2.flat);
+    
+        if (record_cmp (tmp, tmp2, size_searching_fields) == 0) {
+            if (size_found_records > 0) {
+                found_records = realloc (found_records, sizeof (struct record) * (size_found_records + 1));
+                
+                if (found_records == NULL) {
+                    puts ("Failed realloc");
+                    exit (EXIT_FAILURE);
+                }
+            }
+            found_records[size_found_records] = tmp2;
+            size_found_records++;
+        }
+    }
+    if (pthread_mutex_unlock (&mtx)) {
+        puts ("Failed unlocc mutex");
+        exit (EXIT_FAILURE);
+    }
+
+    int offset = 0;
+    char record_buff [RECORD_SIZE];
+
+    for (int i = 0; i < size_found_records; i++) {
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].second_name, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].name, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].patronymic, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].country, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].city, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (buff, offset, found_records[i].street, FIELD_SIZE);
+
+        for (int i = 0; i < sizeof (int); i++, offset++) {
+            record_buff[offset] = (0xff & (found_records[i].house >> (i * CHAR_SIZE)));
+        }
+        for (int i = 0; i < sizeof (int); i++, offset++) {
+            record_buff[offset] = (0xff & (found_records[i].flat >> (i * CHAR_SIZE)));
+        }
+
+        if (send (data-sock, record_buff, RECORD_SIZE, 0) < 0) {
+            puts ("Failed send");
+            exit (EXIT_FAILURE);
+        }
+    }
+    record_buff[0] = '0';
+
+    if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
+        puts ("Failed send");
+        exit (EXIT_FAILURE);
+    }
+}
+
+int record_cmp (struct record tmp, struct record tmp2, int field_count) {
+    int count = 0;
+
+    if (strcmp (tmp.second_name, tmp2.second_name) == 0) {
+        count++;
+    }
+    if (strcmp (tmp.name, tmp2.name) == 0) {
+        count++;
+    }
+    if (strcmp (tmp.patronymic, tmp2.patronymic) == 0) {
+        count++;
+    }
+    if (strcmp (tmp.country, tmp2.country) == 0) {
+        count++;
+    }
+    if (strcmp (tmp.city, tmp2.city) == 0) {
+        count++;
+    }
+    if (strcmp (tmp.street, tmp2.street) == 0) {
+        count++;
+    }
+    if (tmp.house == tmp2.house) {
+        count++;
+    }
+    if (tmp.flat == tmp.flat) {
+        count++;
+    }
+    if (count == field_count) {
+        return 0;
+    }
+    return 1;
 }
 
 void add_record (struct thr_data* data) {
@@ -160,8 +326,8 @@ void add_record (struct thr_data* data) {
 
     for (int i = 0; i < sizeof (int); i++, offset++) {
         rec.house += (int)(buff[offset] << (i * CHAR_SIZE));
-        print_bits (rec.house, 32);
-        print_bits (buff[offset], 8);
+        //print_bits (rec.house, 32);
+        //print_bits (buff[offset], 8);
     }
 
     for (int i = 0; i < sizeof (int); i++, offset++) {
