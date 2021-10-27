@@ -24,3 +24,5 @@ struct record {
 void add_record (int sock);
 
 void send_record (int sock, struct record rec);
+
+void search_record (int sock);

@@ -69,7 +69,7 @@ int main () {
 		}
 
 		if (strcmp (buff, "search\n") == 0) {
-			serch_record (sock);
+			search_record (sock);
 		}
 		memset (buff, '\0', BUFFER_SIZE);
 	}
@@ -77,15 +77,29 @@ int main () {
 }
 
 void search_record (int sock) {
-	char buff[BUFFER_SIZE];
+	char buff[BUFFER_SIZE] = "search";
 
-	fgets (buff, BUFFER_SIZE - 1, stdin);
-
-	if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+	if (send (sock, buff, strlen (buff), 0) < 0) {
 		puts ("Failed send");
 		exit (EXIT_FAILURE);
 	}
+	memset (buff, '\0', BUFFER_SIZE);
 
+	while (fgets (buff, BUFFER_SIZE - 1, stdin)) {
+		if (strcmp (buff, "end\n") == 0) {
+			if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+				puts ("Failed send");
+				exit (EXIT_FAILURE);
+			}
+			break;
+		}
+
+		if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+			puts ("Failed send");
+			exit (EXIT_FAILURE);
+		}
+		memset (buff, '\0', BUFFER_SIZE);
+	}
 	int offset = 0;
 	char record_buff[RECORD_SIZE];
 
@@ -97,6 +111,8 @@ void search_record (int sock) {
 	}
 
 	while (1) {
+		offset = 0;
+
 		if (recv (sock, record_buff, RECORD_SIZE, 0) < 0) {
 			puts ("Failed recv");
 			exit (EXIT_FAILURE);
@@ -113,20 +129,21 @@ void search_record (int sock) {
 				exit (EXIT_FAILURE);
 			}
 		}
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].second_name);
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].name);
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].patronymic);
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].country);
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].city);
-		RECORD_FIELD_FROM_BUFF (record_buff, offset, found_records[size_found_record].street);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].second_name, offset, FIELD_SIZE);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].name, offset, FIELD_SIZE);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].patronymic, offset, FIELD_SIZE);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].country, offset, FIELD_SIZE);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].city, offset, FIELD_SIZE);
+		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].street, offset, FIELD_SIZE);
 
 		 for (int i = 0; i < sizeof (int); i++, offset++) {
-        rec.house += (int)(buff[offset] << (i * CHAR_SIZE));
+        	found_records[size_found_record].house += (int)(buff[offset] << (i * CHAR_SIZE));
    		}
 
     	for (int i = 0; i < sizeof (int); i++, offset++) {
-        	rec.flat += (int)(buff[offset] << (i * CHAR_SIZE));
+        	found_records[size_found_record].flat += (int)(buff[offset] << (i * CHAR_SIZE));
     	}
+    	size_found_record++;
     }
 
     for (int i = 0; i < size_found_record; i++) {
