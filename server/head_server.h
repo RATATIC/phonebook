@@ -44,3 +44,5 @@ void search_record (struct thr_data* data);
 int record_cmp (struct record tmp, struct record tmp2, int field_count);
 
 char* read_word_from_file (FILE** fp); 
+
+void log () ;

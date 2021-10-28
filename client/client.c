@@ -2,7 +2,7 @@
 * @file main.c
 * @author Renat Kagal <kagal@itspartner.net>
 *
-* Assembling : gcc -Wall main.c -o main
+* Assembling : gcc -Wall client.c -o client
 *
 * Description : client in phone book
 *
@@ -30,15 +30,7 @@
 
 #define RECORD_FIELD_FROM_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) field[i] = buff[offset];})
 
-void print_bits (int n, int size) {
-    char* bits = "";
-
-    for (int i = 0; i < size; i++) {
-        asprintf (&bits, "%d%s", (n & 1), bits);
-        n = n >> 1;
-    }
-    printf ("%s\n", bits);
-}
+#define INT_FROM_BUFFER(buff, offset) (((int)((unsigned char)buff[(offset)])) | ((int)((unsigned char)buff[(offset) + 1]) << 8) | ((int)((unsigned char)buff[(offset) + 2]) << 16) | ((int)((unsigned char)buff[(offset) + 3]) << 24))
 
 int main () {
 	int sock;
@@ -71,11 +63,41 @@ int main () {
 		if (strcmp (buff, "search\n") == 0) {
 			search_record (sock);
 		}
+
+		/*if (strcmp (buff, "delete\n") == 0) {
+			delete_record (sock);
+		}*/
 		memset (buff, '\0', BUFFER_SIZE);
 	}
 	close (sock);
 }
 
+/*void delete_record (int sock) {
+	char buff[BUFFER_SIZE] = "delete";
+
+	if (send (sock, buff, strlen (buff), 0) < 0) {
+		puts ("Failed send");
+		exit (EXIT_FAILURE);
+	}
+	memset (buff, '\0', BUFFER_SIZE);
+
+	while (fgets (buff, BUFFER_SIZE - 1, stdin)) {
+		if (strcmp (buff, "end\n") == 0) {
+			if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+				puts ("Failed send");
+				exit (EXIT_FAILURE);
+			}
+			break;
+		}
+
+		if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+			puts ("Failed send");
+			exit (EXIT_FAILURE);
+		}
+		memset (buff, '\0', BUFFER_SIZE);
+	}
+}
+*/
 void search_record (int sock) {
 	char buff[BUFFER_SIZE] = "search";
 
@@ -136,13 +158,10 @@ void search_record (int sock) {
 		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].city, offset, FIELD_SIZE);
 		RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].street, offset, FIELD_SIZE);
 
-		 for (int i = 0; i < sizeof (int); i++, offset++) {
-        	found_records[size_found_record].house += (int)(buff[offset] << (i * CHAR_SIZE));
-   		}
-
-    	for (int i = 0; i < sizeof (int); i++, offset++) {
-        	found_records[size_found_record].flat += (int)(buff[offset] << (i * CHAR_SIZE));
-    	}
+        found_records[size_found_record].house = INT_FROM_BUFFER (record_buff, offset);
+   		offset += sizeof (int);
+        found_records[size_found_record].flat = INT_FROM_BUFFER (record_buff, offset);
+    	
     	size_found_record++;
     }
 

@@ -2,7 +2,7 @@
 * @file main.c
 * @author Renat Kagal <kagal@itspartner.net>
 *
-* Assembling : gcc -Wall main.c -o main
+* Assembling : gcc -Wall server.c -pthread -o server
 *
 * Description : server phone book
 *
@@ -30,25 +30,16 @@
 
 #define RECORD_FIELD_FROM_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) field[i] = buff[offset];})
 
-#define RECORD_FIELD_TO_BUFF(buff, field, offset, size) ({ for (int i = 0; i < size; i++, offset++) buff[offset] = field[i];})
+#define RECORD_FIELD_TO_BUFF(buff, field, offset, size) ({ for (int index = 0; index < size; index++, offset++) buff[offset] = field[index];})
 
-#define INT_FROM_BUFFER(buff, offset) (((int)buff[(offset)] << 0) | ((int)buff[(offset) + 1] << 8) | ((int)buff[(offset) + 2] << 16) | ((int)buff[(offset) + 3] << 24))
-
-#define GET_INT16(buff, offset) ((uint16t)buff[(offset)] | ((uint16t)buff[(offset) + 1] << 8))
-
-void print_bits (int n, int size) {
-    char* bits = "";
-
-    for (int i = 0; i < size; i++) {
-        asprintf (&bits, "%d%s", (n & 1), bits);
-        n = n >> 1;
-    }
-    printf ("%s\n", bits);
-}
+#define INT_FROM_BUFFER(buff, offset) (((int)((unsigned char)buff[(offset)])) | ((int)((unsigned char)buff[(offset) + 1]) << 8) | ((int)((unsigned char)buff[(offset) + 2]) << 16) | ((int)((unsigned char)buff[(offset) + 3]) << 24))
 
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int main () {
+    pthread_t log_thr;
+    pthread_create (log_thr, NULL, log, NULL);
+
     FILE* fp;
     if ((fp = fopen ("phonebook.txt", "a+")) == NULL) {
         puts ("Failed open file");
@@ -100,7 +91,7 @@ int main () {
 
 void client_accept (struct thr_data* data) {
         char buff [BUFFER_SIZE];
-       
+        
         while (1) {
             if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
                 break;
@@ -112,13 +103,183 @@ void client_accept (struct thr_data* data) {
             if (strcmp (buff, "search") == 0) {
                 search_record (data);
             }
-
+           /* if (strcmp (buff, "delete") == 0) {
+                delete_record (data);
+            }
+*/
             memset (buff, '\0', BUFFER_SIZE);
         }
         close (data->sock);
 }
 
+/*void delete_record (struct thr_data* data) {
+    struct record tmp = make_record(data);
+
+    struct tmp2;
+
+    if (pthread_mutex_lock (&mtx)) {
+        puts ("Failed lock mutex");
+        exit (EXIT_FAILURE);
+    }
+    if (fseek (data->fp, 0, SEEK_SET)) {
+        puts ("Failed fseek");
+        exit (EXIT_FAILURE);
+    }
+    while (!feof (data->fp)) {
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.second_name, '\0', FIELD_SIZE);
+        strcat (tmp2.second_name, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.name, '\0', FIELD_SIZE);
+        strcat (tmp2.name, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.patronymic, '\0', FIELD_SIZE);
+        strcat (tmp2.patronymic, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.country, '\0', FIELD_SIZE);
+        strcat (tmp2.country, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.city, '\0', FIELD_SIZE);
+        strcat (tmp2.city, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.street, '\0', FIELD_SIZE);
+        strcat (tmp2.street, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        tmp2.house = atoi (str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        tmp2.flat = atoi (str);
+        free (str);
+
+        if (record_cmp (tmp, tmp2) == 0) {
+
+        }
+    }
+    if (pthread_mutex_unlock (&mtx)) {
+        puts ("Failed unlocc mutex");
+        exit (EXIT_FAILURE);
+    }
+}
+*/
 void search_record (struct thr_data* data) {
+    struct record tmp = make_record (data);
+    struct record tmp2;
+
+    int size_found_records = 0;
+
+    struct record* found_records = (struct record*)malloc  (sizeof (struct record));
+    if (found_records == NULL) {
+        puts ("Failed malloc");
+        exit (EXIT_FAILURE);
+    }
+    char* str;
+
+    if (pthread_mutex_lock (&mtx)) {
+        puts ("Failed lock mutex");
+        exit (EXIT_FAILURE);
+    }
+    if (fseek (data->fp, 0, SEEK_SET)) {
+        puts ("Failed fseek");
+        exit (EXIT_FAILURE);
+    }
+    while (!feof (data->fp)) {
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.second_name, '\0', FIELD_SIZE);
+        strcat (tmp2.second_name, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.name, '\0', FIELD_SIZE);
+        strcat (tmp2.name, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.patronymic, '\0', FIELD_SIZE);
+        strcat (tmp2.patronymic, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.country, '\0', FIELD_SIZE);
+        strcat (tmp2.country, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.city, '\0', FIELD_SIZE);
+        strcat (tmp2.city, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        memset (tmp2.street, '\0', FIELD_SIZE);
+        strcat (tmp2.street, str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        tmp2.house = atoi (str);
+        free (str);
+        str = read_word_from_file (&data->fp);
+        tmp2.flat = atoi (str);
+        free (str);
+
+        if (record_cmp (tmp, tmp2) == 0) {
+            if (size_found_records > 0) {
+                found_records = realloc (found_records, sizeof (struct record) * (size_found_records + 1));    
+                if (found_records == NULL) {
+                    puts ("Failed realloc");
+                    exit (EXIT_FAILURE);
+                }
+            }
+            strcat (found_records[size_found_records].second_name ,tmp2.second_name);
+            strcat (found_records[size_found_records].name, tmp2.name);
+            strcat (found_records[size_found_records].patronymic, tmp2.patronymic);
+            strcat (found_records[size_found_records].country, tmp2.country);
+            strcat (found_records[size_found_records].city, tmp2.city);
+            strcat (found_records[size_found_records].street, tmp2.street);
+            found_records[size_found_records].house = tmp2.house;
+            found_records[size_found_records].flat = tmp2.flat;
+            
+            size_found_records++;
+        }
+    }
+    if (pthread_mutex_unlock (&mtx)) {
+        puts ("Failed unlocc mutex");
+        exit (EXIT_FAILURE);
+    }
+    int offset = 0;
+    char record_buff [RECORD_SIZE];
+
+    for (int i = 0; i < size_found_records; i++, offset = 0) {
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].second_name, offset, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].name, offset, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].patronymic, offset, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].country, offset, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].city, offset, FIELD_SIZE);
+        RECORD_FIELD_TO_BUFF (record_buff, found_records[i].street, offset, FIELD_SIZE);
+
+        for (int j = 0; j < sizeof (int); j++, offset++) {
+            record_buff[offset] = (0xff & (found_records[i].house >> (j * CHAR_SIZE)));
+        }
+
+        for (int j = 0; j < sizeof (int); j++, offset++) {
+            record_buff[offset] = (0xff & (found_records[i].flat >> (j * CHAR_SIZE)));
+        }
+
+        if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
+            puts ("Failed send");
+            exit (EXIT_FAILURE);
+        }
+        memset (record_buff, 0, RECORD_SIZE);
+    }
+    record_buff[0] = '0';
+
+    if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
+        puts ("Failed send");
+        exit (EXIT_FAILURE);
+    }
+
+    free (found_records);
+}
+
+struct tmp make_record (struct thr_data* data) {
     char buff[BUFFER_SIZE];
 
     int size_searching_records = 0;
@@ -146,6 +307,7 @@ void search_record (struct thr_data* data) {
     }
 
     struct record tmp;
+
     char field_name[FIELD_SIZE];
     char number[CHAR_SIZE];
     char* ptr = NULL;
@@ -184,121 +346,13 @@ void search_record (struct thr_data* data) {
         }
         memset (field_name, '\0', FIELD_SIZE);
     }
-    puts (tmp.name);
 
-    if (pthread_mutex_lock (&mtx)) {
-        puts ("Failed lock mutex");
-        exit (EXIT_FAILURE);
+    for (int i = o; i < size_searching_records; i++) {
+        free (searching_records[i]);
     }
-    if (fseek (data->fp, 0, SEEK_SET)) {
-        puts ("Failed fseek");
-        exit (EXIT_FAILURE);
-    }
-    struct record tmp2;
+    free (searching_records);
 
-    int size_found_records = 0;
-
-    struct record* found_records = (struct record*)malloc  (sizeof (struct record));
-    if (found_records == NULL) {
-        puts ("Failed malloc");
-        exit (EXIT_FAILURE);
-    }
-    char* str;
-
-    while (!feof (data->fp)) {
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.second_name, '\0', FIELD_SIZE);
-        strcat (tmp2.second_name, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.name, '\0', FIELD_SIZE);
-        strcat (tmp2.name, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.patronymic, '\0', FIELD_SIZE);
-        strcat (tmp2.patronymic, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.country, '\0', FIELD_SIZE);
-        strcat (tmp2.country, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.city, '\0', FIELD_SIZE);
-        strcat (tmp2.city, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        memset (tmp2.street, '\0', FIELD_SIZE);
-        strcat (tmp2.street, str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        tmp2.house = atoi (str);
-        free (str);
-        str = read_word_from_file (&data->fp);
-        tmp2.flat = atoi (str);
-        free (str);
-
-        if (record_cmp (tmp, tmp2, size_searching_records) == 0) {
-            if (size_found_records > 0) {
-                found_records = realloc (found_records, sizeof (struct record) * (size_found_records + 1));
-                
-                if (found_records == NULL) {
-                    puts ("Failed realloc");
-                    exit (EXIT_FAILURE);
-                }
-            }
-            strcat (found_records[size_found_records].second_name ,tmp2.second_name);
-            strcat (found_records[size_found_records].name, tmp2.name);
-            strcat (found_records[size_found_records].patronymic, tmp2.patronymic);
-            strcat (found_records[size_found_records].country, tmp2.country);
-            strcat (found_records[size_found_records].city, tmp2.city);
-            strcat (found_records[size_found_records].street, tmp2.street);
-            found_records[size_found_records].house = tmp2.house;
-            found_records[size_found_records].flat = tmp2.flat;
-            
-            printf ("%s %s %s %s %s %s %d %d\n", found_records[size_found_records].second_name, found_records[size_found_records].name, found_records[size_found_records].patronymic, found_records[size_found_records].country, found_records[size_found_records].city, found_records[size_found_records].street, found_records[size_found_records].house, found_records[size_found_records].flat);
-
-            size_found_records++;
-        }
-    }
-    if (pthread_mutex_unlock (&mtx)) {
-        puts ("Failed unlocc mutex");
-        exit (EXIT_FAILURE);
-    }
-    for (int i = 0; i < size_found_records; i++) {
-        puts ("dasdadasdasdasdsda");
-        printf ("%s %s %s %s %s %s %d %d", found_records[i].second_name, found_records[i].name, found_records[i].patronymic, found_records[i].country, found_records[i].city, found_records[i].street, found_records[i].house, found_records[i].flat);
-    }
-
-    int offset = 0;
-    char record_buff [RECORD_SIZE];
-
-    for (int i = 0; i < size_found_records; i++) {
-        offset = 0;
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].second_name, offset, FIELD_SIZE);
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].name, offset, FIELD_SIZE);
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].patronymic, offset, FIELD_SIZE);
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].country, offset, FIELD_SIZE);
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].city, offset, FIELD_SIZE);
-        RECORD_FIELD_TO_BUFF (buff, found_records[i].street, offset, FIELD_SIZE);
-
-        for (int i = 0; i < sizeof (int); i++, offset++) {
-            record_buff[offset] = (0xff & (found_records[i].house >> (i * CHAR_SIZE)));
-        }
-        for (int i = 0; i < sizeof (int); i++, offset++) {
-            record_buff[offset] = (0xff & (found_records[i].flat >> (i * CHAR_SIZE)));
-        }
-
-        if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
-            puts ("Failed send");
-            exit (EXIT_FAILURE);
-        }
-    }
-    record_buff[0] = '0';
-
-    if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
-        puts ("Failed send");
-        exit (EXIT_FAILURE);
-    }
+    return tmp;
 }
 
 char* read_word_from_file (FILE** fp) {
@@ -319,7 +373,7 @@ char* read_word_from_file (FILE** fp) {
     return strdup (str);
 }
 
-int record_cmp (struct record tmp, struct record tmp2, int field_count) {
+int record_cmp (struct record tmp, struct record tmp2) {
     int count = 0;
 
     if (strcmp (tmp.second_name, tmp2.second_name) == 0) {
@@ -365,25 +419,16 @@ void add_record (struct thr_data* data) {
     rec.house = 0;
     rec.flat = 0;
 
-    RECORD_FIELD_FROM_BUFF(buff, rec.second_name, offset, FIELD_SIZE);
-    RECORD_FIELD_FROM_BUFF(buff, rec.name, offset, FIELD_SIZE);
-    RECORD_FIELD_FROM_BUFF(buff, rec.patronymic, offset, FIELD_SIZE);
-    RECORD_FIELD_FROM_BUFF(buff, rec.country, offset, FIELD_SIZE);
-    RECORD_FIELD_FROM_BUFF(buff, rec.city, offset, FIELD_SIZE);
-    RECORD_FIELD_FROM_BUFF(buff, rec.street, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.second_name, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.name, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.patronymic, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.country, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.city, offset, FIELD_SIZE);
+    RECORD_FIELD_FROM_BUFF (buff, rec.street, offset, FIELD_SIZE);
 
-    for (int i = 0; i < sizeof (int); i++, offset++) {
-        rec.house += (int)(buff[offset] << (i * CHAR_SIZE));
-        //print_bits (rec.house, 32);
-        //print_bits (buff[offset], 8);
-    }
-
-    for (int i = 0; i < sizeof (int); i++, offset++) {
-        rec.flat += (int)(buff[offset] << (i * CHAR_SIZE));
-    }
-
-    printf ("%s %s %s %s %s %s %d %d\n", rec.second_name, rec.name, rec.patronymic, rec.country, rec.city, rec.street, rec.house, rec.flat);
-    fflush (stdin);
+    rec.house = INT_FROM_BUFFER (buff, offset);
+    offset += sizeof (int);    
+    rec.flat = INT_FROM_BUFFER (buff, offset);
 
     if (pthread_mutex_lock (&mtx)) {
         puts ("Failed lock mtx");
