@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -26,3 +27,5 @@ void add_record (int sock);
 void send_record (int sock, struct record rec);
 
 void search_record (int sock);
+
+void print_mess(int conditional);

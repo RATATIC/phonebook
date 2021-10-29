@@ -29,6 +29,7 @@ struct thr_node {
 };
 
 struct thr_data {
+    int id;
     int sock;
     FILE* fp;
 };
@@ -41,8 +42,12 @@ void create_thread(struct thr_node** thr_top, struct thr_data* data);
 
 void search_record (struct thr_data* data);
 
-int record_cmp (struct record tmp, struct record tmp2, int field_count);
+int record_cmp (struct record tmp, struct record tmp2);
 
-char* read_word_from_file (FILE** fp); 
+char* read_word_from_file (FILE** fp);
 
-void log () ;
+struct record make_record (struct thr_data* data);
+
+void log_m (void* ptr);
+
+void make_log (char* mess, int id);

@@ -38,7 +38,11 @@ pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int main () {
     pthread_t log_thr;
-    pthread_create (log_thr, NULL, log, NULL);
+
+    if (pthread_create (&log_thr, NULL, log_m, NULL)) {
+        puts ("Fieled create log thread");
+        exit (EXIT_FAILURE);
+    }
 
     FILE* fp;
     if ((fp = fopen ("phonebook.txt", "a+")) == NULL) {
@@ -90,25 +94,30 @@ int main () {
 }
 
 void client_accept (struct thr_data* data) {
-        char buff [BUFFER_SIZE];
-        
+        char buff [BUFFER_SIZE];    
+        make_log ("create connection", data->id);
+
         while (1) {
             if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
                 break;
             }
 
             if (strcmp (buff, "add") == 0) {
+                make_log ("calling add function", data->id);
                 add_record (data);
             }
             if (strcmp (buff, "search") == 0) {
+                make_log ("calling search function", data->id);                
                 search_record (data);
             }
            /* if (strcmp (buff, "delete") == 0) {
+                make_log ("calling delete function", data->id);
                 delete_record (data);
             }
 */
             memset (buff, '\0', BUFFER_SIZE);
         }
+        make_log ("close connection", data->id);
         close (data->sock);
 }
 
@@ -169,6 +178,8 @@ void client_accept (struct thr_data* data) {
 */
 void search_record (struct thr_data* data) {
     struct record tmp = make_record (data);
+    puts (tmp.name);
+    
     struct record tmp2;
 
     int size_found_records = 0;
@@ -220,7 +231,7 @@ void search_record (struct thr_data* data) {
         tmp2.flat = atoi (str);
         free (str);
 
-        if (record_cmp (tmp, tmp2) == 0) {
+        if (record_cmp (tmp, tmp2)) {
             if (size_found_records > 0) {
                 found_records = realloc (found_records, sizeof (struct record) * (size_found_records + 1));    
                 if (found_records == NULL) {
@@ -279,7 +290,7 @@ void search_record (struct thr_data* data) {
     free (found_records);
 }
 
-struct tmp make_record (struct thr_data* data) {
+struct record make_record (struct thr_data* data) {
     char buff[BUFFER_SIZE];
 
     int size_searching_records = 0;
@@ -347,11 +358,12 @@ struct tmp make_record (struct thr_data* data) {
         memset (field_name, '\0', FIELD_SIZE);
     }
 
-    for (int i = o; i < size_searching_records; i++) {
+    for (int i = 0; i < size_searching_records; i++) {
         free (searching_records[i]);
     }
     free (searching_records);
 
+    puts (tmp.name);
     return tmp;
 }
 
@@ -374,33 +386,32 @@ char* read_word_from_file (FILE** fp) {
 }
 
 int record_cmp (struct record tmp, struct record tmp2) {
-    int count = 0;
+    //printf ("%s %s %s %s %s %s %d %d\n", tmp.second_name, tmp.name, tmp.patronymic, tmp.country, tmp.city, tmp.street, tmp.house, tmp.flat);
+    puts (tmp.name);
+    printf ("%s %s %s %s %s %s %d %d\n", tmp2.second_name, tmp2.name, tmp2.patronymic, tmp2.country, tmp2.city, tmp2.street, tmp2.house, tmp2.flat);
 
-    if (strcmp (tmp.second_name, tmp2.second_name) == 0) {
-        count++;
+    if (strcmp (tmp.second_name, tmp2.second_name) != 0 && tmp.second_name[0] != '\0') {
+        return 0;
     }
-    if (strcmp (tmp.name, tmp2.name) == 0) {
-        count++;
+    if (strcmp (tmp.name, tmp2.name) != 0 && tmp.name[0] != '\0') {
+        return 0;
     }
-    if (strcmp (tmp.patronymic, tmp2.patronymic) == 0) {
-        count++;
+    if (strcmp (tmp.patronymic, tmp2.patronymic) != 0 && tmp.patronymic[0] != '\0') {
+        return 0;
     }
-    if (strcmp (tmp.country, tmp2.country) == 0) {
-        count++;
+    if (strcmp (tmp.country, tmp2.country) != 0 && tmp.country[0] != '\0') {
+        return 0;
     }
-    if (strcmp (tmp.city, tmp2.city) == 0) {
-        count++;
+    if (strcmp (tmp.city, tmp2.city) != 0 && tmp.city[0] != '\0') {
+        return 0;
     }
-    if (strcmp (tmp.street, tmp2.street) == 0) {
-        count++;
+    if (strcmp (tmp.street, tmp2.street) != 0 && tmp.street[0] != '\0') {
+        return 0;
     }
-    if (tmp.house == tmp2.house) {
-        count++;
+    if (tmp.house != tmp2.house && tmp.house != 0) {
+        return 0;
     }
-    if (tmp.flat == tmp2.flat) {
-        count++;
-    }
-    if (count == field_count) {
+    if (tmp.flat == tmp2.flat && tmp.flat != 0) {
         return 0;
     }
     return 1;
@@ -410,7 +421,7 @@ void add_record (struct thr_data* data) {
     char buff [RECORD_SIZE];                                                                        ///////////////////////
     int offset = 0;
 
-    if (recv (data->sock, buff, BUFFER_SIZE, 0) <= 0) {
+    if (recv (data->sock, buff, RECORD_SIZE, 0) <= 0) {
         puts ("Failed recv add_record");
         exit (EXIT_FAILURE);
     }
@@ -434,12 +445,19 @@ void add_record (struct thr_data* data) {
         puts ("Failed lock mtx");
         exit (EXIT_FAILURE);
     }
-
+    fseek (data->fp, 0, SEEK_END);
     fprintf (data->fp, "%s %s %s %s %s %s %d %d\n", rec.second_name, rec.name, rec.patronymic, rec.country, rec.city, rec.street, rec.house, rec.flat);
     fflush (data->fp);
 
     if (pthread_mutex_unlock (&mtx)) {
         puts ("Failed unlock mtx");
+        exit (EXIT_FAILURE);
+    }
+    memset (buff, 0, RECORD_SIZE);
+    strcat (buff, "successful add");
+
+    if (send (data->sock, buff, RECORD_SIZE, 0) < 0) {
+        puts ("Failed send");
         exit (EXIT_FAILURE);
     }
 }
@@ -454,6 +472,7 @@ void create_thread(struct thr_node** thr_top, struct thr_data* data) {
         }
         (*thr_top)->id = 1;
         (*thr_top)->next = NULL;
+        data->id = (*thr_top)->id;
 
         if (pthread_create (&((*thr_top)->thread), NULL, client_accept, data)) {
             puts ("Failed create thread top");
@@ -474,6 +493,8 @@ void create_thread(struct thr_node** thr_top, struct thr_data* data) {
         tmp2->next = tmp;
 
         tmp->id = tmp2->id + 1;
+        data->id = tmp->id;
+
         tmp->next = NULL;
         
         if (pthread_create (&(tmp->thread), NULL, client_accept, data)) {
