@@ -21,11 +21,17 @@ struct record {
 	int house;
 	int flat; 
 };
-
+// Fucn sends server record and server add record in phonebook
 void add_record (int sock);
 
+// Func sends server record
 void send_record (int sock, struct record rec);
 
+// Fucn sends server fields and server search records in phonebook
 void search_record (int sock);
 
+// Func prints mess about send response and recv request
 void print_mess(int conditional);
+
+// Func sends server fields and server delete record in phonebook
+void delete_record (int sock);

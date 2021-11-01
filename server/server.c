@@ -2,7 +2,7 @@
 * @file main.c
 * @author Renat Kagal <kagal@itspartner.net>
 *
-* Assembling : gcc -Wall server.c -pthread -o server
+* Assembling : gcc -Wall server.c log.o -pthread -o server
 *
 * Description : server phone book
 *
@@ -110,21 +110,21 @@ void client_accept (struct thr_data* data) {
                 make_log ("calling search function", data->id);                
                 search_record (data);
             }
-           /* if (strcmp (buff, "delete") == 0) {
+            if (strcmp (buff, "delete") == 0) {
                 make_log ("calling delete function", data->id);
                 delete_record (data);
             }
-*/
+
             memset (buff, '\0', BUFFER_SIZE);
         }
         make_log ("close connection", data->id);
         close (data->sock);
 }
 
-/*void delete_record (struct thr_data* data) {
-    struct record tmp = make_record(data);
-
-    struct tmp2;
+void delete_record (struct thr_data* data) {
+    struct record tmp = make_record (data);
+    char* str;
+    struct record tmp2;
 
     if (pthread_mutex_lock (&mtx)) {
         puts ("Failed lock mutex");
@@ -166,19 +166,120 @@ void client_accept (struct thr_data* data) {
         tmp2.flat = atoi (str);
         free (str);
 
-        if (record_cmp (tmp, tmp2) == 0) {
-
+        if (record_cmp (tmp, tmp2)) {
+            delete_from_file (data->fp, tmp2);
+            break;
         }
     }
     if (pthread_mutex_unlock (&mtx)) {
         puts ("Failed unlocc mutex");
         exit (EXIT_FAILURE);
     }
+
+    char buff [RECORD_SIZE];
+    memset (buff, 0, RECORD_SIZE);
+    strcat (buff, "successful delete");
+
+    if (send (data->sock, buff, RECORD_SIZE, 0) < 0) {
+        puts ("Failed send");
+        exit (EXIT_FAILURE);
+    }
 }
-*/
+
+void delete_from_file (FILE* fp, struct record tmp) {
+    struct record* records_in_file = (struct record*)malloc (sizeof (struct record));
+    struct record tmp2;
+    int size_records_in_file = 0;
+    char* str;
+
+    if (fseek (fp, 0, SEEK_SET)) {
+        puts ("Failed fseek");
+        exit (EXIT_FAILURE);
+    }
+
+    while (!feof (fp)) {
+        str = read_word_from_file (&fp);
+        memset (tmp2.second_name, '\0', FIELD_SIZE);
+        strcat (tmp2.second_name, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        memset (tmp2.name, '\0', FIELD_SIZE);
+        strcat (tmp2.name, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        memset (tmp2.patronymic, '\0', FIELD_SIZE);
+        strcat (tmp2.patronymic, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        memset (tmp2.country, '\0', FIELD_SIZE);
+        strcat (tmp2.country, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        memset (tmp2.city, '\0', FIELD_SIZE);
+        strcat (tmp2.city, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        memset (tmp2.street, '\0', FIELD_SIZE);
+        strcat (tmp2.street, str);
+        free (str);
+        str = read_word_from_file (&fp);
+        tmp2.house = atoi (str);
+        free (str);
+        str = read_word_from_file (&fp);
+        tmp2.flat = atoi (str);
+        free (str);
+
+        if (size_records_in_file > 0) {
+            records_in_file = realloc (records_in_file, sizeof (struct record) * (size_records_in_file + 1));
+            if (records_in_file == NULL) {
+                puts ("Failed realloc");
+                exit (EXIT_FAILURE);
+            }
+        }
+        record_null_memset (&records_in_file[size_records_in_file]);
+
+        strcat (records_in_file[size_records_in_file].second_name ,tmp2.second_name);
+        strcat (records_in_file[size_records_in_file].name, tmp2.name);
+        strcat (records_in_file[size_records_in_file].patronymic, tmp2.patronymic);
+        strcat (records_in_file[size_records_in_file].country, tmp2.country);
+        strcat (records_in_file[size_records_in_file].city, tmp2.city);
+        strcat (records_in_file[size_records_in_file].street, tmp2.street);
+        records_in_file[size_records_in_file].house = tmp2.house;
+        records_in_file[size_records_in_file].flat = tmp2.flat;
+        
+        size_records_in_file++;
+    }
+
+    if (fclose (fp)) {
+        puts ("Failed close file");
+        exit (EXIT_FAILURE);
+    }
+
+    if ((fp = fopen ("phonebook.txt", "w")) == NULL) {
+        puts ("Failed open file");
+        exit (EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < size_records_in_file - 1; i++) {
+        if (record_cmp (records_in_file[i], tmp) == 0) {
+            fprintf (fp, "%s %s %s %s %s %s %d %d\n", records_in_file[i].second_name, records_in_file[i].name, records_in_file[i].patronymic, records_in_file[i].country, records_in_file[i].city, records_in_file[i].street, records_in_file[i].house, records_in_file[i].flat);
+        }
+    }
+    fflush (fp);
+    if (fclose (fp)) {
+        puts ("Failed close file");
+        exit (EXIT_FAILURE);
+    }
+    if ((fp = fopen ("phonebook.txt", "a+")) == NULL) {
+        puts ("Failed open file");
+        exit (EXIT_FAILURE);
+    }
+
+    free (records_in_file);
+}
+
 void search_record (struct thr_data* data) {
     struct record tmp = make_record (data);
-    puts (tmp.name);
     
     struct record tmp2;
 
@@ -239,6 +340,8 @@ void search_record (struct thr_data* data) {
                     exit (EXIT_FAILURE);
                 }
             }
+            record_null_memset (&found_records[size_found_records]);
+
             strcat (found_records[size_found_records].second_name ,tmp2.second_name);
             strcat (found_records[size_found_records].name, tmp2.name);
             strcat (found_records[size_found_records].patronymic, tmp2.patronymic);
@@ -257,6 +360,7 @@ void search_record (struct thr_data* data) {
     }
     int offset = 0;
     char record_buff [RECORD_SIZE];
+    memset (record_buff, '\0', RECORD_SIZE);
 
     for (int i = 0; i < size_found_records; i++, offset = 0) {
         RECORD_FIELD_TO_BUFF (record_buff, found_records[i].second_name, offset, FIELD_SIZE);
@@ -273,12 +377,11 @@ void search_record (struct thr_data* data) {
         for (int j = 0; j < sizeof (int); j++, offset++) {
             record_buff[offset] = (0xff & (found_records[i].flat >> (j * CHAR_SIZE)));
         }
-
         if (send (data->sock, record_buff, RECORD_SIZE, 0) < 0) {
             puts ("Failed send");
             exit (EXIT_FAILURE);
         }
-        memset (record_buff, 0, RECORD_SIZE);
+        memset (record_buff, '\0', RECORD_SIZE);
     }
     record_buff[0] = '0';
 
@@ -290,8 +393,18 @@ void search_record (struct thr_data* data) {
     free (found_records);
 }
 
+void record_null_memset(struct record* tmp) {
+    memset (tmp->second_name, '\0', FIELD_SIZE);
+    memset (tmp->name, '\0', FIELD_SIZE);
+    memset (tmp->patronymic, '\0', FIELD_SIZE);
+    memset (tmp->country, '\0', FIELD_SIZE);
+    memset (tmp->city, '\0', FIELD_SIZE);
+    memset (tmp->street, '\0', FIELD_SIZE);
+}
+
 struct record make_record (struct thr_data* data) {
     char buff[BUFFER_SIZE];
+    memset (buff, '\0', BUFFER_SIZE);
 
     int size_searching_records = 0;
     char** searching_records = (char**)malloc (sizeof (char*));
@@ -312,12 +425,16 @@ struct record make_record (struct thr_data* data) {
             }
         }
         searching_records[size_searching_records] = (char*)malloc (sizeof (char) * (strlen (buff) + 1));
+        memset (searching_records[size_searching_records], '\0', strlen (buff) + 1);
         strncat (searching_records[size_searching_records], buff, strlen (buff) - 1);
+        
         memset (buff, '\0', BUFFER_SIZE);
         size_searching_records++;
     }
 
     struct record tmp;
+   
+    record_null_memset (&tmp);
 
     char field_name[FIELD_SIZE];
     char number[CHAR_SIZE];
@@ -326,7 +443,6 @@ struct record make_record (struct thr_data* data) {
     for (int i = 0; i < size_searching_records; i++) {
         ptr = strchr (searching_records[i], ' ');
         strncat (field_name, searching_records[i], ptr - searching_records[i]);
-        
         if (strcmp (field_name, "second_name") == 0) {
             strcat (tmp.second_name, ptr + 1);
         }
@@ -357,13 +473,11 @@ struct record make_record (struct thr_data* data) {
         }
         memset (field_name, '\0', FIELD_SIZE);
     }
-
     for (int i = 0; i < size_searching_records; i++) {
         free (searching_records[i]);
     }
     free (searching_records);
 
-    puts (tmp.name);
     return tmp;
 }
 
@@ -379,17 +493,15 @@ char* read_word_from_file (FILE** fp) {
         if (c == '\n' || c == ' ' || c == EOF) {
             break;
         }
-        asprintf (&str, "%s%c", str, c);
+        if (asprintf (&str, "%s%c", str, c) < 0) {
+            puts ("Failed asprintf");
+            exit (EXIT_FAILURE);
+        }
     }
-
     return strdup (str);
 }
 
 int record_cmp (struct record tmp, struct record tmp2) {
-    //printf ("%s %s %s %s %s %s %d %d\n", tmp.second_name, tmp.name, tmp.patronymic, tmp.country, tmp.city, tmp.street, tmp.house, tmp.flat);
-    puts (tmp.name);
-    printf ("%s %s %s %s %s %s %d %d\n", tmp2.second_name, tmp2.name, tmp2.patronymic, tmp2.country, tmp2.city, tmp2.street, tmp2.house, tmp2.flat);
-
     if (strcmp (tmp.second_name, tmp2.second_name) != 0 && tmp.second_name[0] != '\0') {
         return 0;
     }
@@ -411,7 +523,7 @@ int record_cmp (struct record tmp, struct record tmp2) {
     if (tmp.house != tmp2.house && tmp.house != 0) {
         return 0;
     }
-    if (tmp.flat == tmp2.flat && tmp.flat != 0) {
+    if (tmp.flat != tmp2.flat && tmp.flat != 0) {
         return 0;
     }
     return 1;

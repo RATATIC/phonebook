@@ -69,9 +69,9 @@ int main () {
             search_record (sock);
         }
 
-        /*if (strcmp (buff, "delete\n") == 0) {           
+        if (strcmp (buff, "delete\n") == 0) {           
             delete_record (sock);
-        }*/
+        }
         memset (buff, '\0', BUFFER_SIZE);
     }
     close (sock);
@@ -97,7 +97,7 @@ void print_mess(int conditional) {
     }
 }
 
-/*void delete_record (int sock) {
+void delete_record (int sock) {
     char buff[BUFFER_SIZE] = "delete";
 
     if (send (sock, buff, strlen (buff), 0) < 0) {
@@ -121,8 +121,16 @@ void print_mess(int conditional) {
         }
         memset (buff, '\0', BUFFER_SIZE);
     }
+    print_mess (SEND_REQUEST);
+
+    memset (buff, '\0', BUFFER_SIZE);
+    if (recv (sock, buff, BUFFER_SIZE, 0) < 0) {
+        puts ("Failed recv");
+        exit (EXIT_FAILURE);
+    }
+    print_mess (RECV_RESPONSE);
 }
-*/
+
 void search_record (int sock) {
     char buff[BUFFER_SIZE] = "search";
 
@@ -134,14 +142,13 @@ void search_record (int sock) {
 
     while (fgets (buff, BUFFER_SIZE - 1, stdin)) {
         if (strcmp (buff, "end\n") == 0) {
-            if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+            if (send (sock, buff, strlen (buff), 0) < 0) {
                 puts ("Failed send");
                 exit (EXIT_FAILURE);
             }
             break;
         }
-
-        if (send (sock, buff, BUFFER_SIZE, 0) < 0) {
+        if (send (sock, buff, strlen (buff), 0) < 0) {
             puts ("Failed send");
             exit (EXIT_FAILURE);
         }
@@ -178,6 +185,7 @@ void search_record (int sock) {
                 exit (EXIT_FAILURE);
             }
         }
+
         RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].second_name, offset, FIELD_SIZE);
         RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].name, offset, FIELD_SIZE);
         RECORD_FIELD_FROM_BUFF (record_buff, found_records[size_found_record].patronymic, offset, FIELD_SIZE);
@@ -211,7 +219,7 @@ void add_record (int sock) {
 
     send_record (sock, rec);
 
-    memset (buff, 0, BUFFER_SIZE);
+    memset (buff, '\0', BUFFER_SIZE);
     if (recv (sock, buff, BUFFER_SIZE, 0) < 0) {
         puts ("Failed recv");
         exit (EXIT_FAILURE);
